@@ -62,12 +62,10 @@ def find_center(c):
     pass
 
 
-def draw_contours_and_centers(img, contours, centers):
-    for i in range(0, len(contours)):
+def draw_centers(img, centers):
+    for c in centers:
         try:
-            for c in centers:
-                cv2.circle(img, (c[0], c[1]), 7, (255, 255, 255), -1)
-                cv2.drawContours(img, contours, i, (0, 255, 0), 3)
+            cv2.circle(img, (c[0], c[1]), 7, (255, 255, 255), -1)
         except TypeError:
             print("Type error")
     pass
@@ -80,7 +78,8 @@ def __main__():
         img = cam.read()[1]
         img_out = convert_image(img)
         contours, centers = find_contours_and_centers(img_out)
-        draw_contours_and_centers(img, contours, centers)
+        cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+        draw_centers(img, centers)
         cv2.imshow(window_title, img)
         if cv2.waitKey(1) == 27:
             break
