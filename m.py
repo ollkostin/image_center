@@ -73,17 +73,13 @@ def draw_centers(img, centers):
 
 def __main__():
     print cv2.__version__
-    cam = cv2.VideoCapture(0)
-    while cam.isOpened():
-        img = cam.read()[1]
-        img_out = convert_image(img)
-        contours, centers = find_contours_and_centers(img_out)
-        cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
-        draw_centers(img, centers)
-        cv2.imshow(window_title, img)
-        if cv2.waitKey(1) == 27:
-            break
-    cv2.destroyAllWindows()
+    img = cv2.imread('pic.png')
+    img_out = convert_image(img)
+    contours, centers = find_contours_and_centers(img_out)
+    cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+    draw_centers(img, centers)
+    cv2.imshow(window_title, img)
+    cv2.waitKey(0)
     pass
 
 
