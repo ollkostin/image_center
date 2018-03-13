@@ -76,6 +76,12 @@ def __main__():
     img = cv2.imread('pic.png')
     img_out = convert_image(img)
     contours, centers = find_contours_and_centers(img_out)
+    # TODO: remove internal points and build contour. Then find center
+    # main_contour = np.array([centers],dtype=np.int32)
+    # centers.append(
+    #     find_center(main_contour)
+    # )
+    cv2.drawContours(img, main_contour, -1, (0, 255, 0), 3)
     cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
     draw_centers(img, centers)
     cv2.imshow(window_title, img)
