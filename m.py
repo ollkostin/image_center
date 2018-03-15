@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 
 window_title = 'image from camera'
-width_min = 50
-height_min = 50
+width_min = 30
+height_min = 30
 width_max = 400
 height_max = 400
 approx_eps = 0.001
@@ -65,7 +65,7 @@ def find_center(c):
 def draw_centers(img, centers):
     for c in centers:
         try:
-            cv2.circle(img, (c[0], c[1]), 7, (255, 255, 255), -1)
+            cv2.circle(img, c, 7, (255, 255, 255), -1)
         except TypeError:
             print("Type error")
     pass
@@ -73,14 +73,12 @@ def draw_centers(img, centers):
 
 def __main__():
     print cv2.__version__
-    img = cv2.imread('pic.png')
+    img = cv2.imread('picture.jpg')
     img_out = convert_image(img)
     contours, centers = find_contours_and_centers(img_out)
     # TODO: remove internal points and build contour. Then find center
-    # main_contour = np.array([centers],dtype=np.int32)
-    # centers.append(
-    #     find_center(main_contour)
-    # )
+    centers = sort_points(centers)
+    main_contour = get_contour_from_points(centers)
     cv2.drawContours(img, main_contour, -1, (0, 255, 0), 3)
     cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
     draw_centers(img, centers)
@@ -93,6 +91,17 @@ def filter_contour(contour):
     rect = cv2.minAreaRect(contour)
     width, height = rect[1]
     return width_min < width < width_max and height_max > height > height_min
+
+
+# stub
+def sort_points(points):
+    return points
+
+# stub
+def get_contour_from_points(points):
+    return [np.array([[1, 1], [10, 50], [50, 50]], dtype=np.int32),
+            np.array([[99, 99], [99, 60], [60, 99]], dtype=np.int32)]
+
 
 
 __main__()
