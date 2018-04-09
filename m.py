@@ -34,9 +34,9 @@ def floodfill_image(img_thresh):
 
 def find_contours_and_centers(img_out):
     contours = cv2.findContours(img_out, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[1]
-    contours = filter(filter_contour, contours)
+    contours = np.array(filter(filter_contour, contours))
     contours = map(approximate_contour, contours)
-    centers = map(find_center, contours)
+    centers = np.array(map(find_center, contours))
     return [contours, centers]
 
 
@@ -63,25 +63,26 @@ def find_center(c):
 
 
 def draw_centers(img, centers):
-    for c in centers:
+    color = [255, 0, 255]
+    for x, y in centers:
         try:
-            cv2.circle(img, c, 7, (255, 255, 255), -1)
+            cv2.circle(img, (x, y), 7, color, -1)
         except TypeError:
-            print("Type error")
+            print("Type error occurred")
     pass
 
 
-def __main__():
-    print cv2.__version__
+def run():
     img = cv2.imread('picture.jpg')
     img_out = convert_image(img)
     contours, centers = find_contours_and_centers(img_out)
-    # TODO: remove internal points and build contour. Then find center
-    centers = sort_points(centers)
-    main_contour = get_contour_from_points(centers)
-    cv2.drawContours(img, main_contour, -1, (0, 255, 0), 3)
-    cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
-    draw_centers(img, centers)
+    main_contour_points = get_convex_hull(centers)
+    # TODO: find center
+    _contour = [np.array(map(extract_point, main_contour_points),dtype=np.int32)]
+    # draw_centers(img, centers)
+    cv2.drawContours(img, _contour, 0, (0, 0, 0), 3)
+    cv2.drawContours(img, main_contour_points, -1, (0, 255, 0), 3)
+    # cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
     cv2.imshow(window_title, img)
     cv2.waitKey(0)
     pass
@@ -93,18 +94,17 @@ def filter_contour(contour):
     return width_min < width < width_max and height_max > height > height_min
 
 
-# stub
-def sort_points(points):
-    return points
-
-# stub
-def get_contour_from_points(points):
-    return [np.array([[1, 1], [10, 50], [50, 50]], dtype=np.int32),
-            np.array([[99, 99], [99, 60], [60, 99]], dtype=np.int32)]
+def get_convex_hull(points):
+    return cv2.convexHull(points)
+    # return [np.array([[1, 1], [10, 50], [50, 50]], dtype=np.int32),
+    #         np.array([[99, 99], [99, 60], [60, 99]], dtype=np.int32)]
 
 
+def extract_point(point):
+    return point[0]
 
-__main__()
 
-# contours = [np.array([[1, 1], [10, 50], [50, 50]], dtype=np.int32),
-#             np.array([[99, 99], [99, 60], [60, 99]], dtype=np.int32)]
+
+if __name__ == '__main__':
+    print("OpenCV v{}".format(cv2.__version__))
+    run()
