@@ -11,6 +11,8 @@ CAMERA_MODE = '-c'
 FILE_MODE = '-f'
 window_title = 'image'
 
+# TODO: try to use single collections instead of creation
+
 
 def main(argv):
     if argv[0] == CAMERA_MODE:
