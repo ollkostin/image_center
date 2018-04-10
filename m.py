@@ -46,18 +46,11 @@ def approximate_contour(contour):
     return approximated_contour
 
 
-def box_cnt(contour):
-    rect = cv2.minAreaRect(contour)
-    box = cv2.boxPoints(rect)
-    box = np.int0(box)
-    return box
-
-
 def find_center(c):
-    M = cv2.moments(c)
-    if M["m00"] != 0:
-        centroid_x = int(float(M["m10"] / M["m00"]))
-        centroid_y = int(float(M["m01"] / M["m00"]))
+    moments = cv2.moments(c)
+    if moments["m00"] != 0:
+        centroid_x = int(float(moments["m10"] / moments["m00"]))
+        centroid_y = int(float(moments["m01"] / moments["m00"]))
         return centroid_x, centroid_y
     pass
 
@@ -66,10 +59,14 @@ def draw_centers(img, centers):
     color = [255, 0, 255]
     for x, y in centers:
         try:
-            cv2.circle(img, (x, y), 7, color, -1)
+            draw_point(img, (x, y), color)
         except TypeError:
             print("Type error occurred")
     pass
+
+
+def draw_point(img, point, color):
+    cv2.circle(img, point, 7, color, -1)
 
 
 def run():
@@ -77,11 +74,11 @@ def run():
     img_out = convert_image(img)
     contours, centers = find_contours_and_centers(img_out)
     main_contour_points = get_convex_hull(centers)
-    # TODO: find center
-    _contour = [np.array(map(extract_point, main_contour_points),dtype=np.int32)]
-    # draw_centers(img, centers)
-    cv2.drawContours(img, _contour, 0, (0, 0, 0), 3)
-    cv2.drawContours(img, main_contour_points, -1, (0, 255, 0), 3)
+    _contour = [np.array(map(extract_point, main_contour_points), dtype=np.int32)]
+    main_center = find_center(_contour[0])
+    draw_point(img, main_center, (0, 0, 0))
+    cv2.drawContours(img, _contour, 0, (255, 255, 255), 3)
+    cv2.drawContours(img, main_contour_points, -1, (0, 0, 0), 3)
     # cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
     cv2.imshow(window_title, img)
     cv2.waitKey(0)
@@ -102,7 +99,6 @@ def get_convex_hull(points):
 
 def extract_point(point):
     return point[0]
-
 
 
 if __name__ == '__main__':
