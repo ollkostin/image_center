@@ -1,33 +1,47 @@
+# coding: utf8
+
 import cv2
 import numpy as np
 
-width_min = 30
-height_min = 30
+width_min = 20
+height_min = 20
 width_max = 400
 height_max = 400
 approx_eps = 0.001
 
 
 def convert_image(img):
-    img_out = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_out = cv2.Canny(img_out, 100, 200)
-    # remove noise
+    # находим грани с помощью алгоритма Кэнни
+    img_out = cv2.Canny(img, 10, 200)
+
+    # Удаляем шумы билатеральным фильтром
     img_out = cv2.bilateralFilter(img_out, 9, 75, 75)
-    # img_thresh = cv2.threshold(img_canny, 127, 255, cv2.THRESH_BINARY)[1]
-    img_out = cv2.adaptiveThreshold(img_out, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 0)
+
+    # определяем пороговые значения
+    img_out = cv2.adaptiveThreshold(img_out, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0)
+
+    # заливка изображения, чтобы вычислить контуры
     img_out = floodfill_image(img_out)
     return img_out
 
 
-def floodfill_image(img_thresh):
-    img_floodfill = img_thresh.copy()
-    # Mask used to flood filling. Size needs to be 2 pixels more than the image.
-    h, w = img_thresh.shape[:2]
+# TODO: Как заливать?
+def floodfill_image(img):
+    img_floodfill = img.copy()
+    # Маска, использующаяся для заливки (должна быть на 2 пикселя больше исходного изображения)
+    h, w = img.shape[:2]
     mask = np.zeros((h + 2, w + 2), np.uint8)
-    # Floodfill from point (0, 0) by mask
+    # Заливаем
     cv2.floodFill(img_floodfill, mask, (0, 0), 255)
-    # Combine the two images to get the foreground
-    img_out = img_thresh | cv2.bitwise_not(img_floodfill)
+    # cv2.imshow('flood', img_floodfill)
+    img_bitwise_not = cv2.bitwise_not(img_floodfill)
+    # cv2.imshow('bitwise', img_bitwise_not)
+    # Комбинируем, чтобы получить объекты переднего плана
+    img_out = img | img_bitwise_not
+    # TODO : Другой вариант заливки
+    # k = [[0, -1, 0], [-1, 4, 1], [0, -1, 0]]
+    # kernel = np.array(k, np.uint8)
+    # img_out = cv2.morphologyEx(img, cv2.MORPH_GRADIENT, kernel)
     return img_out
 
 
@@ -75,23 +89,37 @@ def find_centers(contours):
 
 def process_image(img):
     img_copy = img.copy()
-    # convert image
+    # Конвертируем изображение
     img_out = convert_image(img_copy)
-    # find contours on converted image
+
+    # Находим контуры
     contours = find_contours(img_out)
-    # find centers of image contours
+
+    # находим центры контуров
     centers = find_centers(contours)
-    # get convex hull of center points
+
+    # находим выпуклую оболочку на основе центров
     main_contour_points = get_convex_hull(centers)
-    # create contour from convex hull
+
+    # создаем контур из точек выпуклой оболочки
     main_contour = create_contour(main_contour_points)
-    # find center of contour
+
+    # находим центр выпуклой оболочки
     main_center = find_center(extract_element(main_contour))
-    # draw all found features
-    draw_point(img_copy, main_center, (0, 0, 0))
-    cv2.drawContours(img_copy, main_contour, -1, (255, 255, 255), 3)
-    cv2.drawContours(img_copy, main_contour_points, -1, (0, 0, 0), 3)
+
+    draw_point(img_copy, main_center, (255, 255, 255))
+
+    if check_contour(main_contour):
+        cv2.drawContours(img_copy, main_contour, -1, (255, 255, 255), 2)
+
+    if check_contour(main_contour_points):
+        cv2.drawContours(img_copy, main_contour_points, -1, (0, 0, 0), 1)
+
     return img_copy
+
+
+def check_contour(points):
+    return points is not None and len(points) != 0 and len(extract_element(points)) != 0
 
 
 def filter_contour(contour):
@@ -112,9 +140,7 @@ def extract_element(point):
 
 
 def get_convex_hull(points):
-    try:
+    if check_contour(points):
         return cv2.convexHull(points)
-    except TypeError:
-        return []
-    except cv2.error:
+    else:
         return []
