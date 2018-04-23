@@ -10,7 +10,8 @@ height_max = 400
 approx_eps = 0.001
 
 
-def convert_image(img):
+def convert_image(img, floodfill_func):
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # находим грани с помощью алгоритма Кэнни
     img_out = cv2.Canny(img, 10, 200)
 
@@ -18,30 +19,33 @@ def convert_image(img):
     img_out = cv2.bilateralFilter(img_out, 9, 75, 75)
 
     # определяем пороговые значения
-    img_out = cv2.adaptiveThreshold(img_out, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0)
+    img_out = cv2.adaptiveThreshold(img_out, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 0)
 
     # заливка изображения, чтобы вычислить контуры
-    img_out = floodfill_image(img_out)
+    img_out = floodfill_func(img_out)
+
     return img_out
 
 
 # TODO: Как заливать?
-def floodfill_image(img):
-    img_floodfill = img.copy()
+def floodfill_image_manual(img):
+    img_copy = img.copy()
     # Маска, использующаяся для заливки (должна быть на 2 пикселя больше исходного изображения)
     h, w = img.shape[:2]
     mask = np.zeros((h + 2, w + 2), np.uint8)
     # Заливаем
-    cv2.floodFill(img_floodfill, mask, (0, 0), 255)
-    # cv2.imshow('flood', img_floodfill)
-    img_bitwise_not = cv2.bitwise_not(img_floodfill)
-    # cv2.imshow('bitwise', img_bitwise_not)
+    cv2.floodFill(img_copy, mask, (0, 0), 255)
+    img_bitwise_not = cv2.bitwise_not(img_copy)
     # Комбинируем, чтобы получить объекты переднего плана
     img_out = img | img_bitwise_not
-    # TODO : Другой вариант заливки
-    # k = [[0, -1, 0], [-1, 4, 1], [0, -1, 0]]
-    # kernel = np.array(k, np.uint8)
-    # img_out = cv2.morphologyEx(img, cv2.MORPH_GRADIENT, kernel)
+    return img_out
+
+
+# TODO : Другой вариант заливки
+def floodfill_image_morph(img):
+    kernel = np.array([[0, -1, 0], [-1, 4, 1], [0, -1, 0]], np.uint8)
+    # kernel = np.ones((3, 3), np.uint8)
+    img_out = cv2.morphologyEx(img, cv2.MORPH_DILATE, kernel)
     return img_out
 
 
@@ -53,7 +57,7 @@ def find_contours(img_out):
 
 
 def approximate_contour(contour):
-    epsilon = approx_eps * cv2.arcLength(contour, True)
+    epsilon = approx_eps * cv2.arcLength(contour, closed=True)
     approximated_contour = cv2.approxPolyDP(contour, epsilon, True)
     return approximated_contour
 
@@ -64,7 +68,8 @@ def find_center(c):
         centroid_x = int(float(moments["m10"] / moments["m00"]))
         centroid_y = int(float(moments["m01"] / moments["m00"]))
         return centroid_x, centroid_y
-    pass
+    else:
+        return 0, 0
 
 
 def draw_centers(img, centers):
@@ -87,10 +92,10 @@ def find_centers(contours):
     return centers
 
 
-def process_image(img):
+def process_image(img, floodfill_func):
     img_copy = img.copy()
     # Конвертируем изображение
-    img_out = convert_image(img_copy)
+    img_out = convert_image(img_copy, floodfill_func)
 
     # Находим контуры
     contours = find_contours(img_out)
@@ -135,8 +140,8 @@ def create_contour(contour_points):
         return [np.array([])]
 
 
-def extract_element(point):
-    return point[0]
+def extract_element(elements):
+    return elements[0]
 
 
 def get_convex_hull(points):

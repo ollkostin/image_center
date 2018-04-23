@@ -9,34 +9,41 @@ from image_processing import *
 
 camera_mode = '-c'
 file_mode = '-f'
-window_title = 'image'
 
-
+#TODO ошибка может быть
 def main(argv):
+    floodfill_func1 = floodfill_image_manual
+    floodfill_func2 = floodfill_image_morph
+    floodfill_func = floodfill_func2
     if argv[0] == camera_mode:
-        process_camera()
+        process_camera(floodfill_func)
     elif argv[0] == file_mode:
-        process_file(argv)
+        process_file(argv, floodfill_func1,'1')
+        process_file(argv, floodfill_func2, '2')
     pass
 
 
-def process_camera():
+def process_camera(floodfill_func):
     cam = cv2.VideoCapture(0)
     while cam.isOpened():
         img = cam.read()[1]
-        img_out = process_image(img)
-        cv2.imshow(window_title, img_out)
+        #TODO: разобраться почему заново пересчитывается
+        #TODO: разбить изображение на сетку и смотреть, как поменялось
+        #TODO: применение, можно притянуть за уши
+
+        img_out = process_image(img, floodfill_func)
+        cv2.imshow('camera', img_out)
         if cv2.waitKey(1) == 27:
             break
     cv2.destroyAllWindows()
 
 
-def process_file(argv):
+def process_file(argv, floodfill_func, window_title=''):
     file_path = argv[1]
     if file_path is not None:
         if os.path.isfile(file_path):
             img = cv2.imread(argv[1])
-            img_out = process_image(img)
+            img_out = process_image(img, floodfill_func)
             cv2.imshow(window_title, img_out)
             cv2.waitKey(0)
     else:
