@@ -1,4 +1,5 @@
 # coding: utf8
+from __future__ import division
 
 import cv2
 import numpy as np
@@ -8,10 +9,88 @@ height_min = 20
 width_max = 400
 height_max = 400
 approx_eps = 0.001
+descriptor_match = 0.63
+orb = cv2.ORB_create()
+bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
+
+
+def process_camera(floodfill_func):
+    cam = cv2.VideoCapture(0)
+    img_prev = None
+    main_contour = None
+    main_center = None
+    main_contour_points = None
+    while cam.isOpened():
+        img = cam.read()[1]
+        if camera_moved(img, img_prev):
+            main_contour, main_center, main_contour_points, img_out = process_image(img, floodfill_func)
+            img_prev = img
+        draw_point(img, main_center, (255, 255, 255))
+        draw_contour(img, main_contour, (255, 255, 255), 2)
+        draw_contour(img, main_contour_points, (0, 0, 0), 1)
+        cv2.imshow('camera', img)
+        if cv2.waitKey(1) == 27:
+            break
+    cv2.destroyAllWindows()
+
+
+def draw_contour(img, contour, color, thickness):
+    if check_contour(contour):
+        cv2.drawContours(img, contour, -1, color, thickness)
+
+
+def camera_moved(img, img_prev):
+    """ Метод, проверяющий, двигалась ли камера. Используется BFMatcher для поиска совпадений дескрипторов
+
+        https://docs.opencv.org/3.3.0/dc/dc3/tutorial_py_matcher.html"""
+    if img_prev is None:
+        return True
+    img_descriptor = orb.detectAndCompute(img, None)[1]
+    img_prev_descriptor = orb.detectAndCompute(img_prev, None)[1]
+    matches = bf.match(img_descriptor, img_prev_descriptor)
+    percent_of_match = float(len(matches) / len(img_descriptor))
+    result = percent_of_match < descriptor_match
+    return result
+
+
+def is_moved(img, img_prev):
+    bitwise = np.subtract(img_prev.copy(), img.copy())
+    nonzero = np.count_nonzero(bitwise)
+    zero = img_prev.size - nonzero
+    number_of_zeros = float(zero / img_prev.size)
+    result = number_of_zeros < 0.051
+    print("{0}".format(number_of_zeros))
+    return result
+
+
+def cropped(img):
+    h, w = img.shape[:2]
+    h_half = int(h / 2)
+    w_half = int(w / 2)
+    lt = img[0:h_half, 0:w_half]
+    lb = img[h_half:h, 0:w_half]
+    rt = img[0:h_half, w_half:w]
+    rb = img[h_half:h, w_half:w]
+    return [lt, lb, rt, rb]
+
+
+def process_file(argv, floodfill_func, window_title=''):
+    file_path = argv[1]
+    if file_path is not None and os.path.isfile(file_path):
+        img = cv2.imread(argv[1])
+        main_contour, main_center = process_image(img, floodfill_func)[:2]
+        draw_point(img, main_center, (255, 255, 255))
+        if check_contour(main_contour):
+            cv2.drawContours(img, main_contour, -1, (255, 255, 255), 2)
+        cv2.imshow(window_title, img)
+        cv2.waitKey(0)
+    else:
+        print("no file specified")
+        return
 
 
 def convert_image(img, floodfill_func):
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # находим грани с помощью алгоритма Кэнни
     img_out = cv2.Canny(img, 10, 200)
 
@@ -112,15 +191,7 @@ def process_image(img, floodfill_func):
     # находим центр выпуклой оболочки
     main_center = find_center(extract_element(main_contour))
 
-    draw_point(img_copy, main_center, (255, 255, 255))
-
-    if check_contour(main_contour):
-        cv2.drawContours(img_copy, main_contour, -1, (255, 255, 255), 2)
-
-    if check_contour(main_contour_points):
-        cv2.drawContours(img_copy, main_contour_points, -1, (0, 0, 0), 1)
-
-    return img_copy
+    return [main_contour, main_center, main_contour_points, img_out]
 
 
 def check_contour(points):
@@ -130,7 +201,8 @@ def check_contour(points):
 def filter_contour(contour):
     rect = cv2.minAreaRect(contour)
     width, height = rect[1]
-    return width_min < width < width_max and height_max > height > height_min
+    # return width_min < width < width_max and height_max > height > height_min
+    return True
 
 
 def create_contour(contour_points):
