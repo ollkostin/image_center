@@ -2,6 +2,7 @@
 from __future__ import division
 
 import cv2
+import os
 import numpy as np
 
 width_min = 20
@@ -23,7 +24,7 @@ def process_camera(floodfill_func):
     while cam.isOpened():
         img = cam.read()[1]
         if camera_moved(img, img_prev):
-            main_contour, main_center, main_contour_points, img_out = process_image(img, floodfill_func)
+            main_contour, main_center, main_contour_points, img_out = process_image(img, floodfill_func, cam_mode=True)
             img_prev = img
         draw_point(img, main_center, (255, 255, 255))
         draw_contour(img, main_contour, (255, 255, 255), 2)
@@ -80,8 +81,7 @@ def process_file(argv, floodfill_func, window_title=''):
         img = cv2.imread(argv[1])
         main_contour, main_center = process_image(img, floodfill_func)[:2]
         draw_point(img, main_center, (255, 255, 255))
-        if check_contour(main_contour):
-            cv2.drawContours(img, main_contour, -1, (255, 255, 255), 2)
+        draw_contour(img, main_contour, (255, 255, 255), 2)
         cv2.imshow(window_title, img)
         cv2.waitKey(0)
     else:
@@ -128,9 +128,10 @@ def floodfill_image_morph(img):
     return img_out
 
 
-def find_contours(img_out):
+def find_contours(img_out, cam_mode=False):
     contours = cv2.findContours(img_out, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[1]
-    contours = np.array(filter(filter_contour, contours))
+    if not cam_mode:
+        contours = np.array(filter(filter_contour, contours))
     contours = map(approximate_contour, contours)
     return contours
 
@@ -171,13 +172,13 @@ def find_centers(contours):
     return centers
 
 
-def process_image(img, floodfill_func):
+def process_image(img, floodfill_func, cam_mode=False):
     img_copy = img.copy()
     # Конвертируем изображение
     img_out = convert_image(img_copy, floodfill_func)
 
     # Находим контуры
-    contours = find_contours(img_out)
+    contours = find_contours(img_out, cam_mode)
 
     # находим центры контуров
     centers = find_centers(contours)
@@ -201,8 +202,8 @@ def check_contour(points):
 def filter_contour(contour):
     rect = cv2.minAreaRect(contour)
     width, height = rect[1]
-    # return width_min < width < width_max and height_max > height > height_min
-    return True
+    return width_min < width < width_max and height_max > height > height_min
+    # return True
 
 
 def create_contour(contour_points):

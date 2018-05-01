@@ -17,7 +17,7 @@ def main(argv):
     if argv[0] == camera_mode:
         imp.process_camera(floodfill_func2)
     elif argv[0] == file_mode:
-        imp.process_file(argv, floodfill_func2, '1')
+        imp.process_file(argv, floodfill_func1, '1')
     pass
 
 
