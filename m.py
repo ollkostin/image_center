@@ -17,9 +17,12 @@ def main(argv):
     if argv[0] == camera_mode:
         imp.process_camera(floodfill_func2)
     elif argv[0] == file_mode:
-        imp.process_file(argv, floodfill_func1, '1')
+        file_path = argv[1]
+        if file_path is not None and os.path.isfile(file_path):
+            imp.process_file(file_path, floodfill_func1, 'image')
+        else:
+            print("no file specified")
     pass
-
 
 
 if __name__ == '__main__':

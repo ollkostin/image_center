@@ -5,14 +5,15 @@ import cv2
 import os
 import numpy as np
 
-width_min = 20
-height_min = 20
-width_max = 400
-height_max = 400
-approx_eps = 0.001
-descriptor_match = 0.63
-orb = cv2.ORB_create()
-bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
+MIN_WIDTH = 20
+MIN_HEIGHT = 20
+MAX_WIDTH = 400
+MAX_HEIGHT = 400
+APPROX_EPS = 0.001
+DESCRIPTOR_MATCH = 0.63
+ZEROS = 0.051
+ORB = cv2.ORB_create()
+BF = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
 
 def process_camera(floodfill_func):
@@ -24,15 +25,25 @@ def process_camera(floodfill_func):
     while cam.isOpened():
         img = cam.read()[1]
         if camera_moved(img, img_prev):
-            main_contour, main_center, main_contour_points, img_out = process_image(img, floodfill_func, cam_mode=True)
-            img_prev = img
-        draw_point(img, main_center, (255, 255, 255))
-        draw_contour(img, main_contour, (255, 255, 255), 2)
-        draw_contour(img, main_contour_points, (0, 0, 0), 1)
+            main_contour, main_center, main_contour_points = process_image(img, floodfill_func, cam_mode=True)
+            if (main_center != (0, 0)):
+                img_prev = img
+            else:
+                main_contour = None
+                main_center = None
+                main_contour_points = None
+        draw_features(img, main_contour, main_center, main_contour_points)
         cv2.imshow('camera', img)
-        if cv2.waitKey(1) == 27:
+        button = cv2.waitKey(1)
+        if button == 27:
             break
     cv2.destroyAllWindows()
+
+
+def draw_features(img, main_contour, main_center, main_contour_points):
+    draw_point(img, main_center, (255, 255, 255))
+    draw_contour(img, main_contour, (255, 255, 255), 2)
+    draw_contour(img, main_contour_points, (0, 0, 0), 1)
 
 
 def draw_contour(img, contour, color, thickness):
@@ -41,27 +52,31 @@ def draw_contour(img, contour, color, thickness):
 
 
 def camera_moved(img, img_prev):
+    return camera_moved_descriptor_match(img, img_prev) or camera_moved_zeros(img, img_prev)
+
+
+def camera_moved_descriptor_match(img, img_prev):
     """ Метод, проверяющий, двигалась ли камера. Используется BFMatcher для поиска совпадений дескрипторов
 
         https://docs.opencv.org/3.3.0/dc/dc3/tutorial_py_matcher.html"""
     if img_prev is None:
         return True
-    img_descriptor = orb.detectAndCompute(img, None)[1]
-    img_prev_descriptor = orb.detectAndCompute(img_prev, None)[1]
-    matches = bf.match(img_descriptor, img_prev_descriptor)
+    img_descriptor = ORB.detectAndCompute(img, None)[1]
+    img_prev_descriptor = ORB.detectAndCompute(img_prev, None)[1]
+    if img_descriptor is None or img_prev_descriptor is None:
+        return True
+    matches = BF.match(img_descriptor, img_prev_descriptor)
     percent_of_match = float(len(matches) / len(img_descriptor))
-    result = percent_of_match < descriptor_match
+    result = percent_of_match < DESCRIPTOR_MATCH
     return result
 
 
-def is_moved(img, img_prev):
+def camera_moved_zeros(img, img_prev):
     bitwise = np.subtract(img_prev.copy(), img.copy())
     nonzero = np.count_nonzero(bitwise)
     zero = img_prev.size - nonzero
     number_of_zeros = float(zero / img_prev.size)
-    result = number_of_zeros < 0.051
-    print("{0}".format(number_of_zeros))
-    return result
+    return number_of_zeros < ZEROS
 
 
 def cropped(img):
@@ -75,25 +90,23 @@ def cropped(img):
     return [lt, lb, rt, rb]
 
 
-def process_file(argv, floodfill_func, window_title=''):
-    file_path = argv[1]
-    if file_path is not None and os.path.isfile(file_path):
-        img = cv2.imread(argv[1])
-        main_contour, main_center = process_image(img, floodfill_func)[:2]
-        draw_point(img, main_center, (255, 255, 255))
-        draw_contour(img, main_contour, (255, 255, 255), 2)
-        cv2.imshow(window_title, img)
-        cv2.waitKey(0)
-    else:
-        print("no file specified")
+def process_file(file_path, floodfill_func, window_title=''):
+    img = cv2.imread(file_path)
+    main_contour, main_center, main_contour_points = process_image(img, floodfill_func)
+    draw_features(img, main_contour, main_center, main_contour_points)
+    cv2.imshow(window_title, img)
+    button = cv2.waitKey(0)
+    if button == 27:
         return
 
 
 def convert_image(img, floodfill_func):
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # находим грани с помощью алгоритма Кэнни
-    img_out = cv2.Canny(img, 10, 200)
+    img_copy = img.copy()
+    # переводим в ч/б
+    img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGR2GRAY)
 
+    # находим грани с помощью алгоритма Кэнни
+    img_out = cv2.Canny(img_copy, 150, 200)
     # Удаляем шумы билатеральным фильтром
     img_out = cv2.bilateralFilter(img_out, 9, 75, 75)
 
@@ -106,25 +119,26 @@ def convert_image(img, floodfill_func):
     return img_out
 
 
-# TODO: Как заливать?
 def floodfill_image_manual(img):
-    img_copy = img.copy()
     # Маска, использующаяся для заливки (должна быть на 2 пикселя больше исходного изображения)
     h, w = img.shape[:2]
     mask = np.zeros((h + 2, w + 2), np.uint8)
-    # Заливаем
-    cv2.floodFill(img_copy, mask, (0, 0), 255)
-    img_bitwise_not = cv2.bitwise_not(img_copy)
+    # Заливаем изображение по маске
+    floodfilled = img.copy()
+    cv2.floodFill(floodfilled, mask, (0, 0), 255)
+    img_bitwise_not = cv2.bitwise_not(floodfilled)
     # Комбинируем, чтобы получить объекты переднего плана
     img_out = img | img_bitwise_not
+    nonzero = cv2.countNonZero(img_out)
+    if float(nonzero/img_out.size) > 0.9 :
+        img_out = floodfill_image_morph(img)
     return img_out
 
 
-# TODO : Другой вариант заливки
 def floodfill_image_morph(img):
-    kernel = np.array([[0, -1, 0], [-1, 4, 1], [0, -1, 0]], np.uint8)
-    # kernel = np.ones((3, 3), np.uint8)
-    img_out = cv2.morphologyEx(img, cv2.MORPH_DILATE, kernel)
+    # kernel = np.array([[0, -1, 0], [-1, 4, 1], [0, -1, 0]], np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
+    img_out = cv2.morphologyEx(img.copy(), cv2.MORPH_DILATE, kernel)
     return img_out
 
 
@@ -137,7 +151,7 @@ def find_contours(img_out, cam_mode=False):
 
 
 def approximate_contour(contour):
-    epsilon = approx_eps * cv2.arcLength(contour, closed=True)
+    epsilon = APPROX_EPS * cv2.arcLength(contour, closed=True)
     approximated_contour = cv2.approxPolyDP(contour, epsilon, True)
     return approximated_contour
 
@@ -189,10 +203,13 @@ def process_image(img, floodfill_func, cam_mode=False):
     # создаем контур из точек выпуклой оболочки
     main_contour = create_contour(main_contour_points)
 
+    if len(extract_element(main_contour)) < 2:
+        return [None, None, None]
+
     # находим центр выпуклой оболочки
     main_center = find_center(extract_element(main_contour))
 
-    return [main_contour, main_center, main_contour_points, img_out]
+    return [main_contour, main_center, main_contour_points]
 
 
 def check_contour(points):
@@ -202,8 +219,7 @@ def check_contour(points):
 def filter_contour(contour):
     rect = cv2.minAreaRect(contour)
     width, height = rect[1]
-    return width_min < width < width_max and height_max > height > height_min
-    # return True
+    return MIN_WIDTH < width < MAX_WIDTH and MAX_HEIGHT > height > MIN_HEIGHT
 
 
 def create_contour(contour_points):
